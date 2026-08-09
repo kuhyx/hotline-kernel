@@ -75,12 +75,24 @@ const Slot = ({ label, slot }: {
   </div>
 );
 
+/**
+ * Slots are driven by the holder list, not a fixed count: with the per-living
+ * slope turned up the cap exceeds two, and hardcoded rows would hide exactly
+ * the holders the person tuning that slider needs to see. Pads to the flat
+ * default so the panel keeps its shape at rest.
+ */
+const slotsFor = (held: readonly SlotView[], minimum: number): (SlotView | undefined)[] =>
+  Array.from({ length: Math.max(minimum, held.length) }, (_, i) => held[i]);
+
 const TokenSection = ({ view }: { readonly view: RigView }): JSX.Element => (
   <section className="grp">
     <h2 className="lbl">Commit tokens</h2>
-    <Slot label="RANGED 1" slot={view.ranged[0]} />
-    <Slot label="RANGED 2" slot={view.ranged[1]} />
-    <Slot label="MELEE 1" slot={view.melee[0]} />
+    {slotsFor(view.ranged, 2).map((slot, i) => (
+      <Slot key={`r${String(i)}`} label={`RANGED ${String(i + 1)}`} slot={slot} />
+    ))}
+    {slotsFor(view.melee, 1).map((slot, i) => (
+      <Slot key={`m${String(i)}`} label={`MELEE ${String(i + 1)}`} slot={slot} />
+    ))}
     <p className="note">A token frees only when the shot resolves or the holder dies.</p>
   </section>
 );
@@ -92,6 +104,9 @@ const PressureSection = ({ config, onConfig }: SectionProps): JSX.Element => (
       format={String} onChange={(x): void => { onConfig('rangedTokens', x); }} />
     <Range label="melee token cap" value={config.meleeTokens} min={0} max={3} step={1}
       format={String} onChange={(x): void => { onConfig('meleeTokens', x); }} />
+    <Range label="tokens per living enemy" value={config.tokensPerLiving}
+      min={0} max={1} step={0.05} format={(x): string => x.toFixed(2)}
+      onChange={(x): void => { onConfig('tokensPerLiving', x); }} />
     <Range label="grant stagger" value={config.grantStaggerMs} min={0} max={600} step={25}
       format={ms} onChange={(x): void => { onConfig('grantStaggerMs', x); }} />
     <div className="row">

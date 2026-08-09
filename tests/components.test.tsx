@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { App } from '../src/App.js';
 import { defaultConfig } from '../src/core/config.js';
-import { createState } from '../src/core/sim.js';
+import { createState, loadLevel } from '../src/core/sim.js';
 import { buildRigView } from '../src/ui/rigView.js';
 import { GameCanvas } from '../src/ui/GameCanvas.js';
 import { Rig } from '../src/ui/Rig.js';
@@ -44,6 +44,22 @@ describe('Rig', () => {
     first.deadline = 1000;
     renderRig(state);
     expect(screen.getAllByText(first.archetype.label).length).toBeGreaterThan(0);
+  });
+
+  it('renders a third ranged slot when the scaled cap grants one', () => {
+    // Level 1 is the first with three ranged spawns; level 0 has only two.
+    const state = createState(0);
+    loadLevel(state, 1, 0, 'fists', 0);
+    const ranged = state.enemies.filter((e) => !e.archetype.melee).slice(0, 3);
+    expect(ranged).toHaveLength(3);
+    for (const [i, e] of ranged.entries()) {
+      e.committing = true;
+      e.grantedAt = 0;
+      e.deadline = 1000 + i;
+    }
+    renderRig(state);
+    // Hardcoded RANGED 1/2 rows would drop the third holder silently.
+    expect(screen.getByText('RANGED 3')).toBeTruthy();
   });
 
   it('reports no deaths yet', () => {
@@ -286,6 +302,7 @@ describe('Rig exhaustively', () => {
   const RANGES: readonly [string, string][] = [
     ['ranged token cap', '3'],
     ['melee token cap', '2'],
+    ['tokens per living enemy', '0.5'],
     ['grant stagger', '300'],
     ['pistol grunt', '800'],
     ['shotgunner', '900'],
@@ -314,7 +331,7 @@ describe('Rig exhaustively', () => {
       fireEvent.click(screen.getByLabelText(label));
     }
     expect(onConfig.mock.calls.map(([key]) => key as string)).toStrictEqual([
-      'rangedTokens', 'meleeTokens', 'grantStaggerMs',
+      'rangedTokens', 'meleeTokens', 'tokensPerLiving', 'grantStaggerMs',
       'windupMs', 'windupMs', 'windupMs', 'windupMs', 'windupMs',
       'outOfFovBonusMs', 'playerSpeed', 'fovDegrees', 'comboBreakMs',
       'silhouettes', 'threatArcs', 'audioTells',

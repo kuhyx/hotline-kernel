@@ -65,6 +65,15 @@ export const grantToken = (
   }
 };
 
+/**
+ * A flat cap means wildly different pressure at different roster sizes: 2 of
+ * twenty is a trickle, 2 of five is half the room. The slope is additive and
+ * deliberately branchless — at the default 0 this is arithmetically `base`, so
+ * it changes nothing until someone turns it up.
+ */
+export const tokenCap = (base: number, living: number, perLiving: number): number =>
+  Math.max(0, base + Math.floor(living * perLiving));
+
 /** Never let two tells fire on the same frame; the player cannot separate them. */
 export const serviceTokens = (
   state: GameState, now: number, cfg: Config, rng: Rng, inheritMs: number | undefined,
@@ -74,15 +83,16 @@ export const serviceTokens = (
   }
   const eligible = (melee: boolean): Enemy[] =>
     state.enemies.filter((e) => isEligible(state, e, cfg) && e.archetype.melee === melee);
+  const living = state.enemies.filter((e) => e.alive).length;
 
-  if (heldBy(state, false).length < cfg.rangedTokens) {
+  if (heldBy(state, false).length < tokenCap(cfg.rangedTokens, living, cfg.tokensPerLiving)) {
     const pick = pickCandidate(state, eligible(false), cfg, rng);
     if (pick !== undefined) {
       grantToken(state, pick, now, cfg, inheritMs);
       return;
     }
   }
-  if (heldBy(state, true).length < cfg.meleeTokens) {
+  if (heldBy(state, true).length < tokenCap(cfg.meleeTokens, living, cfg.tokensPerLiving)) {
     const pick = pickCandidate(state, eligible(true), cfg, rng);
     if (pick !== undefined) {
       grantToken(state, pick, now, cfg, inheritMs);

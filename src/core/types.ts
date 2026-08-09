@@ -61,6 +61,14 @@ export interface Config {
   windupMs: Record<ArchetypeId, number>;
   rangedTokens: number;
   meleeTokens: number;
+  /**
+   * Extra commit tokens per living enemy, added to both caps. A flat cap is
+   * light pressure against a roster of twenty and half the room against five.
+   * Default 0 reproduces the flat behaviour exactly, so this is opt-in.
+   * One shared slope, not one per pool: per-pool is the obvious extension if
+   * tuning ever demands it.
+   */
+  tokensPerLiving: number;
   grantStaggerMs: number;
   priority: PriorityRule;
   inherit: InheritRule;

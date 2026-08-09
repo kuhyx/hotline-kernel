@@ -13,6 +13,7 @@ export const defaultConfig = (): Config => ({
   windupMs: baseWindups(),
   rangedTokens: 2,
   meleeTokens: 1,
+  tokensPerLiving: 0,
   grantStaggerMs: 150,
   priority: 'inFovFirst',
   inherit: 'fresh',

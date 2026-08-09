@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { makeRng } from '../src/core/rng.js';
 import {
-  grantToken, heldBy, isEligible, pickCandidate, serviceTokens, windupProgress,
+  grantToken, heldBy, isEligible, pickCandidate, serviceTokens, tokenCap, windupProgress,
 } from '../src/core/tokens.js';
 import { cfg, enemyAt, stateWith } from './helpers.js';
 
@@ -178,5 +178,46 @@ describe('windupProgress', () => {
   });
   it('survives a degenerate zero-length window', () => {
     expect(windupProgress({ grantedAt: 5, deadline: 5 }, 5)).toBe(0);
+  });
+});
+
+describe('the token cap scales with the living roster', () => {
+  it('is exactly the flat base at the default slope', () => {
+    expect(tokenCap(2, 3, 0)).toBe(2);
+    expect(tokenCap(0, 5, 0)).toBe(0);
+    expect(tokenCap(1, 20, 0)).toBe(1);
+  });
+  it('adds one token per two living at half slope', () => {
+    expect(tokenCap(2, 4, 0.5)).toBe(4);
+  });
+  it('floors the fraction rather than granting a partial token', () => {
+    expect(tokenCap(1, 3, 0.5)).toBe(2);
+  });
+  it('never returns a negative cap', () => {
+    expect(tokenCap(-5, 0, 0)).toBe(0);
+  });
+  it('counts only the living, so clearing the room lowers the ceiling', () => {
+    const s = stateWith([
+      enemyAt(8.5, 5.0), enemyAt(8.5, 5.5), enemyAt(8.5, 6.0),
+      enemyAt(8.5, 6.5, 'grunt', { alive: false }),
+    ], { lastGrantAt: -9999 });
+    const c = cfg({ rangedTokens: 1, tokensPerLiving: 0.5 });
+    for (let i = 0; i < 10; i += 1) {
+      serviceTokens(s, i * 1000, c, rng(), undefined);
+    }
+    // 3 living * 0.5 = +1 on top of the base 1. The corpse must not count.
+    expect(heldBy(s, false)).toHaveLength(2);
+  });
+  it('lets three commit at once where the flat cap allows only two', () => {
+    const enemies = [enemyAt(8.5, 5.0), enemyAt(8.5, 5.5), enemyAt(8.5, 6.0)];
+    const flat = stateWith(enemies.map((e) => ({ ...e })), { lastGrantAt: -9999 });
+    const scaled = stateWith(enemies.map((e) => ({ ...e })), { lastGrantAt: -9999 });
+    for (let i = 0; i < 10; i += 1) {
+      serviceTokens(flat, i * 1000, cfg({ rangedTokens: 2 }), rng(), undefined);
+      serviceTokens(scaled, i * 1000,
+        cfg({ rangedTokens: 2, tokensPerLiving: 0.34 }), rng(), undefined);
+    }
+    expect(heldBy(flat, false)).toHaveLength(2);
+    expect(heldBy(scaled, false)).toHaveLength(3);
   });
 });
