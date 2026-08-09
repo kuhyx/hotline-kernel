@@ -37,15 +37,31 @@ export const pickCandidate = (
     distanceToPlayer(state, e) < distanceToPlayer(state, best) ? e : best);
 };
 
+/**
+ * The shortest wind-up a player can actually answer. The fastest archetype
+ * (hound, 350ms) sits above it by design; nothing inherited may go below it.
+ */
+const MIN_REACTION_MS = 300;
+
 /** Taking the token IS the tell: one warning window, never two. */
 export const grantToken = (
   state: GameState, enemy: Enemy, now: number, cfg: Config, inheritMs: number | undefined,
 ): void => {
   const seen = inFov(state, enemy, cfg.fovDegrees);
   const heard = isAudible(state, enemy);
+  const fresh = cfg.windupMs[enemy.archetype.id];
+  /**
+   * An inherited window never exceeds the fresh one and never drops below the
+   * reaction floor. Inheriting is meant to punish dawdling, not to manufacture
+   * an unanswerable tell: a 5ms remainder off a dying grunt used to hand a
+   * hound a 120ms commit. The floor is absolute, not a fraction of the fresh
+   * window — a third of an already-fast 350ms is still too short to answer.
+   * `unannounced` stays zero through all of it, so the log cannot catch this
+   * class of unfairness; only the floor can.
+   */
   const base = cfg.inherit === 'inheritRemaining' && inheritMs !== undefined
-    ? Math.max(120, inheritMs)
-    : cfg.windupMs[enemy.archetype.id];
+    ? Math.min(fresh, Math.max(MIN_REACTION_MS, inheritMs))
+    : fresh;
 
   enemy.committing = true;
   enemy.grantedAt = now;
@@ -79,24 +95,45 @@ export const tokenCap = (base: number, living: number, perLiving: number): numbe
 export const serviceTokens = (
   state: GameState, now: number, cfg: Config, rng: Rng, inheritMs: number | undefined,
 ): void => {
+  // Park a freed window before any early return. The kill that frees it almost
+  // never coincides with a grant that can use it — the stagger blocks, the cap
+  // is still full, nobody is eligible yet — so handing it straight down loses
+  // it. Keep the LARGEST outstanding debt rather than the first: two kills in
+  // quick succession should not let a 0ms remainder mask a 900ms one, and `0`
+  // is not nullish so `??=` would have done exactly that.
+  if (inheritMs !== undefined) {
+    state.pendingInheritMs = Math.max(state.pendingInheritMs ?? 0, inheritMs);
+  }
+  // Only the inherit rule has any use for a parked window. Holding one under
+  // `fresh` means a later flip of the live Rig toggle would apply a debt
+  // incurred while the rule was off.
+  if (cfg.inherit !== 'inheritRemaining') {
+    state.pendingInheritMs = undefined;
+  }
+
   if (now - state.lastGrantAt < cfg.grantStaggerMs) {
     return;
   }
   const eligible = (melee: boolean): Enemy[] =>
     state.enemies.filter((e) => isEligible(state, e, cfg) && e.archetype.melee === melee);
   const living = state.enemies.filter((e) => e.alive).length;
+  const pending = state.pendingInheritMs;
+  const consume = (pick: Enemy): void => {
+    grantToken(state, pick, now, cfg, pending);
+    state.pendingInheritMs = undefined;
+  };
 
   if (heldBy(state, false).length < tokenCap(cfg.rangedTokens, living, cfg.tokensPerLiving)) {
     const pick = pickCandidate(state, eligible(false), cfg, rng);
     if (pick !== undefined) {
-      grantToken(state, pick, now, cfg, inheritMs);
+      consume(pick);
       return;
     }
   }
   if (heldBy(state, true).length < tokenCap(cfg.meleeTokens, living, cfg.tokensPerLiving)) {
     const pick = pickCandidate(state, eligible(true), cfg, rng);
     if (pick !== undefined) {
-      grantToken(state, pick, now, cfg, inheritMs);
+      consume(pick);
     }
   }
 };

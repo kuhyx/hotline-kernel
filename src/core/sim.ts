@@ -26,6 +26,8 @@ export const loadLevel = (
   state.projectiles = [];
   state.lastGrantAt = now;
   state.levelStartedAt = now;
+  // A new level is a new fight; a window freed in the last one means nothing.
+  state.pendingInheritMs = undefined;
   state.dead = false;
   state.diedAt = 0;
   state.enemies = level.spawns.map((sp): Enemy => ({
@@ -41,6 +43,7 @@ export const createState = (now: number): GameState => {
     levelIndex: 0, grid: [], px: 0, py: 0, pa: 0, weapon: 'fists', ammo: 0,
     enemies: [], projectiles: [], combo: 0, bestCombo: 0, score: 0,
     lastKillAt: now, lastGrantAt: now, levelStartedAt: now, dead: false,
+    pendingInheritMs: undefined,
     diedAt: 0, log: emptyLog(), cues: [],
   };
   loadLevel(state, 0, now, 'fists', 0);

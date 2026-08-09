@@ -132,6 +132,14 @@ export interface GameState {
   score: number;
   lastKillAt: number;
   lastGrantAt: number;
+  /**
+   * A wind-up freed by a kill, waiting for the next holder. Parked here rather
+   * than passed straight down because the grant that would consume it is
+   * usually refused — by the stagger, a full cap, or nobody being eligible yet
+   * — and dropping it on the floor made `inheritRemaining` all but dead.
+   * `undefined` means there is nothing to hand on.
+   */
+  pendingInheritMs: number | undefined;
   levelStartedAt: number;
   dead: boolean;
   diedAt: number;

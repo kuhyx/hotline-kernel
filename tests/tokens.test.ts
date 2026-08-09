@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { makeRng } from '../src/core/rng.js';
-import { step } from '../src/core/sim.js';
+import { killEnemy } from '../src/core/combat.js';
+import { loadLevel, step } from '../src/core/sim.js';
 import {
   emitFootstep, grantToken, heldBy, isEligible, pickCandidate, serviceTokens,
   tokenCap, wantsFootstep, windupProgress,
@@ -109,13 +110,13 @@ describe('granting', () => {
   });
   it('uses an inherited window under the inherit rule', () => {
     const s = stateWith([enemyAt(8.5, 5.5)]);
-    grantToken(s, s.enemies[0]!, 0, cfg({ inherit: 'inheritRemaining' }), 200);
-    expect(s.enemies[0]!.baseWindup).toBe(200);
+    grantToken(s, s.enemies[0]!, 0, cfg({ inherit: 'inheritRemaining' }), 500);
+    expect(s.enemies[0]!.baseWindup).toBe(500);
   });
-  it('floors an inherited window at 120ms', () => {
+  it('floors an inherited window at the reaction limit', () => {
     const s = stateWith([enemyAt(8.5, 5.5)]);
     grantToken(s, s.enemies[0]!, 0, cfg({ inherit: 'inheritRemaining' }), 10);
-    expect(s.enemies[0]!.baseWindup).toBe(120);
+    expect(s.enemies[0]!.baseWindup).toBe(300);
   });
   it('falls back to the base window when inherit has nothing to inherit', () => {
     const s = stateWith([enemyAt(8.5, 5.5)]);
@@ -184,44 +185,127 @@ describe('windupProgress', () => {
   });
 });
 
-describe('the token cap scales with the living roster', () => {
-  it('is exactly the flat base at the default slope', () => {
-    expect(tokenCap(2, 3, 0)).toBe(2);
-    expect(tokenCap(0, 5, 0)).toBe(0);
-    expect(tokenCap(1, 20, 0)).toBe(1);
+describe('a freed wind-up survives until someone can take it', () => {
+  const dying = (): Enemy => enemyAt(7.5, 5.5, 'grunt', {
+    alerted: true, committing: true, grantedAt: 0, deadline: 900,
   });
-  it('adds one token per two living at half slope', () => {
-    expect(tokenCap(2, 4, 0.5)).toBe(4);
+
+  it('parks the remainder when the stagger refuses the grant', () => {
+    const kill = dying();
+    const waiting = enemyAt(7.6, 5.6, 'grunt', { alerted: true });
+    // lastGrantAt 100 puts the kill at t=100 inside the 150ms stagger.
+    const s = stateWith([kill, waiting], { lastGrantAt: 100 });
+    const c = cfg({ inherit: 'inheritRemaining', rangedTokens: 1, grantStaggerMs: 150 });
+
+    killEnemy(s, kill, 100, c, rng());
+    expect(heldBy(s, false)).toHaveLength(0);
+    expect(s.pendingInheritMs).toBe(800);
+
+    // Once the stagger has passed the parked window is handed on, not lost.
+    serviceTokens(s, 400, c, rng(), undefined);
+    expect(waiting.baseWindup).toBe(800);
+    expect(s.pendingInheritMs).toBeUndefined();
   });
-  it('floors the fraction rather than granting a partial token', () => {
-    expect(tokenCap(1, 3, 0.5)).toBe(2);
+
+  it('keeps the oldest debt when a second kill lands first', () => {
+    const first = dying();
+    const second = enemyAt(7.7, 5.7, 'grunt', {
+      alerted: true, committing: true, grantedAt: 0, deadline: 600,
+    });
+    const s = stateWith([first, second], { lastGrantAt: 100 });
+    const c = cfg({ inherit: 'inheritRemaining', rangedTokens: 0, grantStaggerMs: 150 });
+    killEnemy(s, first, 100, c, rng());
+    killEnemy(s, second, 100, c, rng());
+    expect(s.pendingInheritMs).toBe(800);
   });
-  it('never returns a negative cap', () => {
-    expect(tokenCap(-5, 0, 0)).toBe(0);
+
+  it('clears the debt on a new level: a fresh fight owes nothing', () => {
+    const s = stateWith([dying()], { pendingInheritMs: 500 });
+    loadLevel(s, 1, 0, 'fists', 0);
+    expect(s.pendingInheritMs).toBeUndefined();
   });
-  it('counts only the living, so clearing the room lowers the ceiling', () => {
-    const s = stateWith([
-      enemyAt(8.5, 5.0), enemyAt(8.5, 5.5), enemyAt(8.5, 6.0),
-      enemyAt(8.5, 6.5, 'grunt', { alive: false }),
-    ], { lastGrantAt: -9999 });
-    const c = cfg({ rangedTokens: 1, tokensPerLiving: 0.5 });
-    for (let i = 0; i < 10; i += 1) {
-      serviceTokens(s, i * 1000, c, rng(), undefined);
-    }
-    // 3 living * 0.5 = +1 on top of the base 1. The corpse must not count.
-    expect(heldBy(s, false)).toHaveLength(2);
+
+  it('never inherits a window below the reaction floor', () => {
+    // A 5ms remainder off a dying grunt must not hand a hound an unanswerable
+    // commit. `unannounced` stays 0 either way, so only the floor catches this.
+    const kill = enemyAt(7.5, 5.5, 'grunt', {
+      alerted: true, committing: true, grantedAt: 0, deadline: 105,
+    });
+    const hound = enemyAt(7.0, 5.5, 'hound', { alerted: true });
+    const s = stateWith([kill, hound], { lastGrantAt: 100 });
+    const c = cfg({
+      inherit: 'inheritRemaining', rangedTokens: 0, meleeTokens: 1, grantStaggerMs: 150,
+    });
+    killEnemy(s, kill, 100, c, rng());
+    serviceTokens(s, 5000, c, rng(), undefined);
+    expect(hound.baseWindup).toBe(300);
   });
-  it('lets three commit at once where the flat cap allows only two', () => {
-    const enemies = [enemyAt(8.5, 5.0), enemyAt(8.5, 5.5), enemyAt(8.5, 6.0)];
-    const flat = stateWith(enemies.map((e) => ({ ...e })), { lastGrantAt: -9999 });
-    const scaled = stateWith(enemies.map((e) => ({ ...e })), { lastGrantAt: -9999 });
-    for (let i = 0; i < 10; i += 1) {
-      serviceTokens(flat, i * 1000, cfg({ rangedTokens: 2 }), rng(), undefined);
-      serviceTokens(scaled, i * 1000,
-        cfg({ rangedTokens: 2, tokensPerLiving: 0.34 }), rng(), undefined);
-    }
-    expect(heldBy(flat, false)).toHaveLength(2);
-    expect(heldBy(scaled, false)).toHaveLength(3);
+
+  it('still shortens a slow archetype, so dawdling is punished', () => {
+    const kill = enemyAt(7.5, 5.5, 'grunt', {
+      alerted: true, committing: true, grantedAt: 0, deadline: 700,
+    });
+    const rifle = enemyAt(8.5, 5.5, 'rifleman', { alerted: true });
+    const s = stateWith([kill, rifle], { lastGrantAt: 100 });
+    const c = cfg({ inherit: 'inheritRemaining', rangedTokens: 1, grantStaggerMs: 150 });
+    killEnemy(s, kill, 100, c, rng());
+    serviceTokens(s, 5000, c, rng(), undefined);
+    expect(rifle.baseWindup).toBe(600);
+  });
+
+  it('never inherits MORE than the archetype would get fresh', () => {
+    const s = stateWith([enemyAt(7.0, 5.5, 'hound', { alerted: true })], { lastGrantAt: -9999 });
+    s.pendingInheritMs = 99999;
+    const c = cfg({ inherit: 'inheritRemaining', rangedTokens: 0, meleeTokens: 1 });
+    serviceTokens(s, 5000, c, rng(), undefined);
+    expect(s.enemies[0]!.baseWindup).toBe(350);
+  });
+
+  it('keeps the largest debt: a zero remainder cannot mask a real one', () => {
+    const s = stateWith([enemyAt(8.5, 5.5)], { lastGrantAt: 1e9, pendingInheritMs: 0 });
+    const dead = enemyAt(7.5, 5.5, 'grunt', {
+      alerted: true, committing: true, grantedAt: 0, deadline: 1000,
+    });
+    s.enemies.push(dead);
+    killEnemy(s, dead, 100, cfg({ inherit: 'inheritRemaining' }), rng());
+    expect(s.pendingInheritMs).toBe(900);
+  });
+
+  it('drops a debt incurred while the fresh rule was active', () => {
+    // `inherit` is a live Rig toggle; a window freed under `fresh` must not
+    // resurface after the switch.
+    const kill = enemyAt(7.5, 5.5, 'grunt', {
+      alerted: true, committing: true, grantedAt: 0, deadline: 400,
+    });
+    const next = enemyAt(8.5, 5.5, 'grunt', { alerted: true });
+    const s = stateWith([kill, next], { lastGrantAt: 100 });
+    killEnemy(s, kill, 100, cfg({ inherit: 'fresh', rangedTokens: 1 }), rng());
+    expect(s.pendingInheritMs).toBeUndefined();
+
+    serviceTokens(s, 5000, cfg({ inherit: 'inheritRemaining', rangedTokens: 1 }), rng(), undefined);
+    expect(next.baseWindup).toBe(1000);
+  });
+
+  it('hands a parked window to a melee holder too', () => {
+    const kill = enemyAt(7.5, 5.5, 'grunt', {
+      alerted: true, committing: true, grantedAt: 0, deadline: 900,
+    });
+    const rusher = enemyAt(6.0, 5.5, 'rusher', { alerted: true });
+    const s = stateWith([kill, rusher], { lastGrantAt: 100 });
+    const c = cfg({
+      inherit: 'inheritRemaining', rangedTokens: 0, meleeTokens: 1, grantStaggerMs: 150,
+    });
+    killEnemy(s, kill, 100, c, rng());
+    serviceTokens(s, 5000, c, rng(), undefined);
+    expect(rusher.baseWindup).toBe(500);
+    expect(s.pendingInheritMs).toBeUndefined();
+  });
+
+  it('parks nothing when the kill freed nothing', () => {
+    const idle = enemyAt(7.5, 5.5, 'grunt', { alerted: true });
+    const s = stateWith([idle, guard()], { lastGrantAt: 1e9 });
+    killEnemy(s, idle, 100, cfg({ inherit: 'inheritRemaining' }), rng());
+    expect(s.pendingInheritMs).toBeUndefined();
   });
 });
 
@@ -293,5 +377,46 @@ describe('melee approach audio', () => {
     step(s, emptyInput(), 0.01667, 500, noCommit(), rng());
     expect(s.cues.some((c) => c.kind === 'footstep')).toBe(true);
     expect(s.cues.some((c) => c.kind === 'commit')).toBe(false);
+  });
+});
+
+describe('the token cap scales with the living roster', () => {
+  it('is exactly the flat base at the default slope', () => {
+    expect(tokenCap(2, 3, 0)).toBe(2);
+    expect(tokenCap(0, 5, 0)).toBe(0);
+    expect(tokenCap(1, 20, 0)).toBe(1);
+  });
+  it('adds one token per two living at half slope', () => {
+    expect(tokenCap(2, 4, 0.5)).toBe(4);
+  });
+  it('floors the fraction rather than granting a partial token', () => {
+    expect(tokenCap(1, 3, 0.5)).toBe(2);
+  });
+  it('never returns a negative cap', () => {
+    expect(tokenCap(-5, 0, 0)).toBe(0);
+  });
+  it('counts only the living, so clearing the room lowers the ceiling', () => {
+    const s = stateWith([
+      enemyAt(8.5, 5.0), enemyAt(8.5, 5.5), enemyAt(8.5, 6.0),
+      enemyAt(8.5, 6.5, 'grunt', { alive: false }),
+    ], { lastGrantAt: -9999 });
+    const c = cfg({ rangedTokens: 1, tokensPerLiving: 0.5 });
+    for (let i = 0; i < 10; i += 1) {
+      serviceTokens(s, i * 1000, c, rng(), undefined);
+    }
+    // 3 living * 0.5 = +1 on top of the base 1. The corpse must not count.
+    expect(heldBy(s, false)).toHaveLength(2);
+  });
+  it('lets three commit at once where the flat cap allows only two', () => {
+    const enemies = [enemyAt(8.5, 5.0), enemyAt(8.5, 5.5), enemyAt(8.5, 6.0)];
+    const flat = stateWith(enemies.map((e) => ({ ...e })), { lastGrantAt: -9999 });
+    const scaled = stateWith(enemies.map((e) => ({ ...e })), { lastGrantAt: -9999 });
+    for (let i = 0; i < 10; i += 1) {
+      serviceTokens(flat, i * 1000, cfg({ rangedTokens: 2 }), rng(), undefined);
+      serviceTokens(scaled, i * 1000,
+        cfg({ rangedTokens: 2, tokensPerLiving: 0.34 }), rng(), undefined);
+    }
+    expect(heldBy(flat, false)).toHaveLength(2);
+    expect(heldBy(scaled, false)).toHaveLength(3);
   });
 });
