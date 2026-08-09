@@ -61,6 +61,7 @@ export const grantToken = (
       pan: Math.sin(relativeAngle(state, enemy)),
       durationMs: seen ? 100 : 160,
       kind: 'commit',
+      gain: 0.14,
     });
   }
 };
@@ -98,6 +99,44 @@ export const serviceTokens = (
       grantToken(state, pick, now, cfg, inheritMs);
     }
   }
+};
+
+/** Beyond this an approach is not yet news; inside it, it is the warning. */
+const FOOTSTEP_RADIUS = 9;
+/** A walking pace, and clear of the hound's 350ms wind-up. */
+const FOOTSTEP_CADENCE_MS = 320;
+const FOOTSTEP_QUIET = 0.05;
+const FOOTSTEP_SWING = 0.13;
+
+/**
+ * A 350ms swing tell from behind is not a fair warning on its own. Footsteps
+ * that grow louder land BEFORE the commit does, so the approach is announced
+ * even when the swing itself is too fast to answer.
+ *
+ * Deliberately silent once the enemy commits: taking the token is its own tell,
+ * and a second overlapping channel is the "never two warnings" rule broken.
+ */
+export const wantsFootstep = (
+  state: GameState, enemy: Enemy, now: number, cfg: Config,
+): boolean =>
+  cfg.audioTells &&
+  enemy.archetype.melee &&
+  enemy.alerted &&
+  !enemy.committing &&
+  distanceToPlayer(state, enemy) < FOOTSTEP_RADIUS &&
+  now - enemy.lastFootstepAt >= FOOTSTEP_CADENCE_MS;
+
+/** Closer is louder: the gain IS the distance cue. */
+export const emitFootstep = (state: GameState, enemy: Enemy, now: number): void => {
+  const nearness = 1 - Math.min(1, distanceToPlayer(state, enemy) / FOOTSTEP_RADIUS);
+  enemy.lastFootstepAt = now;
+  state.cues.push({
+    toneHz: enemy.archetype.toneHz * 0.5,
+    pan: Math.sin(relativeAngle(state, enemy)),
+    durationMs: 70,
+    kind: 'footstep',
+    gain: FOOTSTEP_QUIET + FOOTSTEP_SWING * nearness,
+  });
 };
 
 /** Remaining wind-up as 0..1, for bars and silhouette state. */

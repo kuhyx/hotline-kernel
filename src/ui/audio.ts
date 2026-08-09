@@ -15,6 +15,9 @@ interface AudioLike {
 const KIND_WAVE: Readonly<Record<Cue['kind'], OscillatorType>> = {
   commit: 'square', shot: 'sawtooth', kill: 'sine',
   death: 'sawtooth', dryFire: 'square', pickup: 'sine',
+  // Distinct from the four already in use: an approach must never be mistaken
+  // for the commit it precedes.
+  footstep: 'triangle',
 };
 
 /** Audio is a channel, not a dependency: if it fails, the game still plays. */
@@ -27,8 +30,10 @@ export const makeToneSink = (context: AudioLike): ToneSink => ({
     osc.type = KIND_WAVE[cue.kind];
     osc.frequency.value = cue.toneHz;
     panner.pan.value = Math.max(-1, Math.min(1, cue.pan));
+    // Clamped with Math, not a branch: exponentialRampToValueAtTime throws on 0.
+    const peak = Math.max(0.0001, Math.min(1, cue.gain));
     gain.gain.setValueAtTime(0.0001, context.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.14, context.currentTime + 0.01);
+    gain.gain.exponentialRampToValueAtTime(peak, context.currentTime + 0.01);
     gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + seconds);
     osc.connect(gain);
     gain.connect(panner);

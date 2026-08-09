@@ -3,7 +3,7 @@ import { killPlayer } from './combat.js';
 import { clearRay, distanceToPlayer, inFov, isSolid } from './geometry.js';
 import { levelAt } from './levels.js';
 import type { Rng } from './rng.js';
-import { serviceTokens } from './tokens.js';
+import { emitFootstep, serviceTokens, wantsFootstep } from './tokens.js';
 import type { Config, Enemy, GameState, PlayerInput, WeaponId } from './types.js';
 
 export const RESPAWN_DELAY_MS = 380;
@@ -32,7 +32,7 @@ export const loadLevel = (
     x: sp.x, y: sp.y, archetype: ARCHETYPES[sp.archetype], alive: true,
     alerted: false, committing: false, grantedAt: 0, deadline: 0, baseWindup: 0,
     seenAtCommit: false, heardAtCommit: false, lastKnownX: sp.x, lastKnownY: sp.y,
-    looted: false,
+    looted: false, lastFootstepAt: -Infinity,
   }));
 };
 
@@ -188,6 +188,9 @@ export const step = (
   for (const enemy of state.enemies.filter((e) => e.alive)) {
     updateAwareness(state, enemy);
     advance(state, enemy, dt);
+    if (wantsFootstep(state, enemy, now, cfg)) {
+      emitFootstep(state, enemy, now);
+    }
     if (enemy.committing) {
       resolveCommit(state, enemy, now, cfg, rng);
     }

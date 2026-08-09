@@ -41,6 +41,8 @@ export interface Enemy {
   lastKnownX: number;
   lastKnownY: number;
   looted: boolean;
+  /** Per-enemy, so two approaching threats each announce themselves. */
+  lastFootstepAt: number;
 }
 
 export interface Projectile {
@@ -99,13 +101,20 @@ export interface PlayerInput {
   turnRight: boolean;
 }
 
-export type CueKind = 'commit' | 'shot' | 'kill' | 'death' | 'dryFire' | 'pickup';
+export type CueKind =
+  'commit' | 'shot' | 'kill' | 'death' | 'dryFire' | 'pickup' | 'footstep';
 
 export interface Cue {
   toneHz: number;
   pan: number;
   durationMs: number;
   kind: CueKind;
+  /**
+   * Peak amplitude, 0..1. Required rather than optional: a `?? default` would
+   * be a branch, and every branch here has to be paid for in tests.
+   * Proximity is the whole signal of the melee approach tell.
+   */
+  gain: number;
 }
 
 export interface GameState {

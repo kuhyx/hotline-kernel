@@ -36,7 +36,7 @@ export const killEnemy = (
   state.bestCombo = Math.max(state.bestCombo, state.combo);
   state.score += 100 * state.combo;
   state.lastKillAt = now;
-  state.cues.push({ toneHz: 880, pan: 0, durationMs: 50, kind: 'kill' });
+  state.cues.push({ toneHz: 880, pan: 0, durationMs: 50, kind: 'kill', gain: 0.14 });
   serviceTokens(state, now, cfg, rng, freed);
 };
 
@@ -60,7 +60,7 @@ export const killPlayer = (
   }
   state.log.survivalMs.push(now - state.levelStartedAt);
   state.combo = 0;
-  state.cues.push({ toneHz: 70, pan: 0, durationMs: 400, kind: 'death' });
+  state.cues.push({ toneHz: 70, pan: 0, durationMs: 400, kind: 'death', gain: 0.14 });
 };
 
 const aimHits = (state: GameState, enemy: Enemy, angle: number): boolean => {
@@ -93,11 +93,11 @@ export const firePlayerWeapon = (
     return;
   }
   if (state.ammo <= 0) {
-    state.cues.push({ toneHz: 140, pan: 0, durationMs: 40, kind: 'dryFire' });
+    state.cues.push({ toneHz: 140, pan: 0, durationMs: 40, kind: 'dryFire', gain: 0.14 });
     return;
   }
   state.ammo -= 1;
-  state.cues.push({ toneHz: 200, pan: 0, durationMs: 50, kind: 'shot' });
+  state.cues.push({ toneHz: 200, pan: 0, durationMs: 50, kind: 'shot', gain: 0.14 });
   alertWithin(state, 22);
   const spread = SPREAD[state.weapon];
   for (let i = 0; i < PELLETS[state.weapon]; i += 1) {
@@ -116,7 +116,7 @@ export const meleePlayer = (
   if (state.dead) {
     return;
   }
-  state.cues.push({ toneHz: 300, pan: 0, durationMs: 40, kind: 'shot' });
+  state.cues.push({ toneHz: 300, pan: 0, durationMs: 40, kind: 'shot', gain: 0.14 });
   for (const e of state.enemies) {
     const bearing = normaliseAngle(
       Math.atan2(e.y - state.py, e.x - state.px) - state.pa,
@@ -141,5 +141,5 @@ export const lootWeapon = (state: GameState): void => {
   target.looted = true;
   state.weapon = target.archetype.drops;
   state.ammo = target.archetype.magazine;
-  state.cues.push({ toneHz: 660, pan: 0, durationMs: 60, kind: 'pickup' });
+  state.cues.push({ toneHz: 660, pan: 0, durationMs: 60, kind: 'pickup', gain: 0.14 });
 };

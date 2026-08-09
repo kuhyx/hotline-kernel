@@ -20,7 +20,8 @@ export const enemyAt = (
 ): Enemy => ({
   x, y, archetype: ARCHETYPES[id], alive: true, alerted: true, committing: false,
   grantedAt: 0, deadline: 0, baseWindup: 0, seenAtCommit: false,
-  heardAtCommit: false, lastKnownX: x, lastKnownY: y, looted: false, ...over,
+  heardAtCommit: false, lastKnownX: x, lastKnownY: y, looted: false,
+  lastFootstepAt: -Infinity, ...over,
 });
 
 /**
@@ -29,7 +30,11 @@ export const enemyAt = (
  */
 export const guard = (): Enemy => enemyAt(9.5, 9.5, 'grunt', { alerted: false });
 
-/** Caps at zero: nobody may commit, so a test can isolate one behaviour. */
+/**
+ * Caps at zero: nobody may commit, so a test can isolate one behaviour.
+ * Holds only at the default `tokensPerLiving: 0` — with the slope turned up,
+ * a base of zero still scales to a non-zero cap.
+ */
 export const noCommit = (over: Partial<Config> = {}): Config =>
   cfg({ rangedTokens: 0, meleeTokens: 0, ...over });
 
