@@ -15,6 +15,8 @@ jobs:
           node-version: '22'
           cache: npm
       - run: npm ci
+      - name: File length (250-line cap)
+        run: bash scripts/check-file-length.sh --all
       - run: npm run typecheck
       - run: npm run lint
       - run: npm run coverage

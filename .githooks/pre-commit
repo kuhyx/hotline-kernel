@@ -1,0 +1,7 @@
+#!/bin/bash
+# Checks only the files in this commit, so an unrelated change never trips on
+# a pre-existing file. Fails the commit; it is a gate, not a warning.
+set -euo pipefail
+mapfile -t staged < <(git diff --cached --name-only --diff-filter=ACM)
+[[ ${#staged[@]} -eq 0 ]] && exit 0
+exec bash "$(git rev-parse --show-toplevel)/scripts/check-file-length.sh" "${staged[@]}"
