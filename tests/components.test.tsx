@@ -133,7 +133,10 @@ describe('App', () => {
     });
     for (let i = 1; i < 600; i += 1) { tick(i * 33); }
     expect(play).toHaveBeenCalled();
-  });
+    // 600 acted ticks through the whole kernel is genuinely heavy: it ran at
+    // ~4.5s against the 5s default, so it timed out the first time a version
+    // bump made it slightly slower. The margin, not the behaviour, was the bug.
+  }, 30_000);
 
   it('applies a config change from the rig', () => {
     vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(recordingCtx() as never);
