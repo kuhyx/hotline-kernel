@@ -7,7 +7,7 @@
 # which is the largest avoidable cost in an LLM-assisted workflow. The cap
 # applies to code and prose alike; generated files, markup and data are exempt.
 #
-# Self-contained on purpose: the shared checker lives in ~/utils, which does
+# Self-contained on purpose: the shared checker lives in ~/src/utils, which does
 # not exist on a CI runner. This is the same rule, vendored so the gate runs
 # identically in a commit hook and on push.
 #
