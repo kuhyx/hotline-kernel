@@ -10,16 +10,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12
       - uses: actions/setup-node@v4
         with:
-          node-version: "24.20.0"
-          cache: npm
-      - run: npm ci
+          node-version: "24.21.0"
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
       - name: File length (250-line cap)
         run: bash scripts/check-file-length.sh --all
-      - run: npm run typecheck
-      - run: npm run lint
-      - run: npm run coverage
-      - run: npm run build
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm coverage
+      - run: pnpm build
       - name: Invariant soak
-        run: npm run soak -- 3
+        run: pnpm soak 3

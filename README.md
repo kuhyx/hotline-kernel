@@ -82,16 +82,16 @@ the `random` priority rule is testable.
 ## Commands
 
 ```bash
-npm install
+pnpm install
 
-npm run dev          # http://localhost:5173
-npm run build        # typecheck + production bundle into dist/
-npm run preview      # serve the built bundle
+pnpm dev             # http://localhost:5173
+pnpm build           # typecheck + production bundle into dist/
+pnpm preview         # serve the built bundle
 
-npm test             # 227 tests
-npm run coverage     # enforces 100% lines/branches/functions/statements
-npm run lint         # ESLint: every core rule + type-aware strict
-npm run typecheck    # tsc --noEmit
+pnpm test            # 227 tests
+pnpm coverage        # enforces 100% lines/branches/functions/statements
+pnpm lint            # ESLint: every core rule + type-aware strict
+pnpm typecheck       # tsc --noEmit
 
 npm run soak         # 10 simulated minutes per rule combination, twice over:
                      # once with a passive player, once with one that kills.

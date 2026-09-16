@@ -3,7 +3,7 @@
  * ~90 simulated seconds per configuration; this runs it far longer, across the
  * full matrix of priority and inherit rules, and reports the channel mix.
  *
- * Run with: npm run soak
+ * Run with: pnpm soak
  */
 import { firePlayerWeapon, lootWeapon, meleePlayer } from '../src/core/combat.js';
 import { defaultConfig } from '../src/core/config.js';
