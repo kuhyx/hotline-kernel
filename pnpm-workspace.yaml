@@ -1,0 +1,5 @@
+allowBuilds:
+  # Prebuilt binding is used; no install script needs to run (same as ts_config).
+  unrs-resolver: false
+minimumReleaseAgeExclude:
+  - eslint-plugin-unicorn@75.0.0
