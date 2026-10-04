@@ -13,19 +13,21 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
-    "lint": "eslint .",
+    "lint": "eslint . --max-warnings=0",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --coverage",
     "knip": "knip",
     "jscpd": "jscpd src",
     "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm knip && pnpm jscpd && pnpm build",
-    "soak": "vite-node scripts/soak.ts"
+    "soak": "vite-node scripts/soak.ts",
+    "coverage": "vitest run --coverage"
   },
   "dependencies": {
     "react": "19.3.0",
     "react-dom": "19.3.0"
   },
   "devDependencies": {
+    "@eslint/js": "10.0.1",
     "@kuhyx/ts-config": "github:kuhyx/utils#ts_config-v0.1.2&path:/ts_config",
     "@testing-library/dom": "10.4.2",
     "@testing-library/react": "16.3.3",
@@ -34,6 +36,8 @@
     "@vitejs/plugin-react": "6.1.1",
     "@vitest/coverage-v8": "5.0.3",
     "eslint": "10.12.0",
+    "eslint-plugin-react-hooks": "7.1.1",
+    "globals": "17.13.0",
     "happy-dom": "20.14.5",
     "jscpd": "5.4.0",
     "knip": "6.39.0",
